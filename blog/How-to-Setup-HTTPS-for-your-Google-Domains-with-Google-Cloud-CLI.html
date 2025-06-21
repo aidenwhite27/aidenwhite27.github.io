@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Google tag (gtag.js) -->
+    <!--
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-B2EBWQR3SF"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        
+        gtag('config', 'G-B2EBWQR3SF');
+    </script>
+    -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+    <title>How to Setup HTTPS for your Google Domains with Google Cloud CLI</title>
+
+    <!-- Bootstrap -->
+    <link href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="/static/css/main.css">
+    <meta name="description" content="The personal blog of Aiden White. I am a Software Developer located in Southern California.">
+    <meta name="keywords" content="aiden, white, software, developer, programmer, california, runner">
+</head>
+<body>
+    <nav class="navbar navbar-default">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar-collapse-1" aria-expanded="false">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">aidenwhite.com</a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar-collapse-1">
+                <ul class="nav navbar-nav">
+                    <li><a href="/">Blog</a></li>
+                    <li><a href="/projects.html">Projects</a></li>
+                    <li><a href="/about.html">About</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container post">
+    <h1><a class="post-title" href="/blog/How-to-Setup-HTTPS-for-your-Google-Domains-with-Google-Cloud-CLI.html">How to Setup HTTPS for your Google Domains with Google Cloud CLI</a></h1>
+    <h6> By: Aiden White </h6>
+    <h6> Posted: <span class="" data-timestamp="2023-11-21T06:21:00Z" data-function="format" data-format="LLL" data-refresh="0" style="">November 20, 2023 10:21 PM</span> </h6>
+    <h6> Last Edited: <span class="" data-timestamp="2024-08-22T01:10:51Z" data-function="format" data-format="LLL" data-refresh="0" style="">August 21, 2024 6:10 PM</span> </h6>
+    
+    <hr>
+    <div> This website supports HTTPS connections. I wanted to make sure that any user logins or form submissions I implement in the future would be encrypted when communicating with the server. In order to achieve this, I needed to get a certificate authority (CA) to issue me a TLS (Transport Layer Security) certificate for the aidenwhite.com domain. Since I was already using Google Domains, I decided to use the free service Public CA from Google Trust Services (GTS). Public CA can be used via any Automatic Certificate Management Environment (ACME), and I recommend the free, open source tool called Certbot. Here's how I managed to set up TLS certificates at no additional cost using Google Domains, Google Cloud CLI, and Certbot:
+        <br>
+        <h3>1) Install Certbot on the server</h3>
+        In my case, I am using a Virtual Private Server (VPS) from Digital Ocean running Ubuntu 22.04. After SSH'ing onto the server, I install certbot with apt install.
+        <br>
+        <pre>apt install certbot</pre>
+        <h3>2) Install and Start Google Cloud CLI</h3>
+        In my case I curl'd and extracted the download, then ran the install script and the init command.
+        <br>
+        <pre>curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-441.0.0-linux-x86_64.tar.gz
+        tar -xf google-cloud-cli-441.0.0-linux-x86_64.tar.gz 
+        ./google-cloud-sdk/install.sh
+        ./google-cloud-sdk/bin/gcloud init</pre>
+        <h3>3) Get EAB key from Google Domains</h3>
+        Log into Google Domains in a browser, select the domain you want to configure, and go to Security. Scroll down to SSL/TLS Certificates and underneath Google Trust Services click "Get EAB key". Keep track of the EAB and HMAC keys that are generated. We will use these to connect to our Google Domains account while using Certbot.
+        <h3>4) Register ACME account</h3>
+        Run the following command on the server with Certbot installed. For server, see the Google documentation for more information. Basically, use "https://dv.acme-v02.api.pki.goog/directory" in production and "https://dv.acme-v02.test-api.pki.goog/directory" in staging.
+        <br>
+        <pre>certbot register \
+            --email "EMAIL_ADDRESS" \
+            --no-eff-email \
+            --server "SERVER" \
+            --eab-kid "EAB_KID" \
+            --eab-hmac-key "EAB_HMAC_KEY"</pre>
+        <h3>5) Request Certificates</h3>
+        Run the following command on the server. For server, see above.  For domains, enter a comma-separated list of domains for which you are requesting certificates, i.e. "aidenwhite.com, www.aidenwhite.com".
+        <br>
+        <pre>certbot certonly \
+            --manual \
+            --preferred-challenges "dns-01" \
+            --server "SERVER" \
+            --domains "DOMAINS"</pre>
+        <h3>7) Add DNS Record</h3>
+        Now Certbot will prompt you to publish a specific TXT record at a given hostname. Go to the DNS page in Google Domains and paste and save this record. Then go back to your terminal running Certbot on the server and press enter to make Certbot validate the DNS record.
+        <h3>8) Deploy Certificates</h3>
+        If Certbot was able to successfully validate your DNS record, it will notify you that a certificate and key have been created and give you their location. It will also tell you the date the certificate expires and directions for renewing the certificate, so make sure to save these for later. Then, all you need to do is let your web server know where to find your certificate and key. For example, I run NGINX so I go into my /etc/nginx/sites-enabled/aidenwhite.com.conf file and add the paths to my certificate and key. See below for an example. I also redirect any HTTP requests on port 80 to HTTPS on port 443.
+        <br>
+        <pre>server {
+            # listen on port 80 (HTTP)
+            listen 80;
+            server_name aidenwhite.com www.aidenwhite.com;
+            location / {
+                # redirect any requests to the same URL but on HTTPS
+                return 301 https://$host$request_uri;
+            }
+        }
+
+        server {
+            # listen on port 443 (HTTPS)
+            listen 443 ssl;
+            server_name aidenwhite.com www.aidenwhite.com;
+
+            # location of the certificate &amp; key
+            ssl_certificate /etc/letsencrypt/live/aidenwhite.com/fullchain.pem;
+            ssl_certificate_key /etc/letsencrypt/live/aidenwhite.com/privkey.pem;
+
+        ...</pre>
+        <br>
+        Don't forget to restart NGINX to reflect these changes
+        <br>
+        <pre>systemctl restart nginx</pre>
+        That's it! Your site should now support HTTPS connections. </div>
+        <br>
+    </div>
+
+    <footer style="text-align:center"> 
+      <hr>
+      <p> &copy 2025 by Aiden White. All rights reserved.</p>
+    </footer>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment-with-locales.min.js" integrity="sha512-42PE0rd+wZ2hNXftlM78BSehIGzezNeQuzihiBCvUEB3CVxHvsShF86wBWwQORNxNINlBPuq7rG4WWhNiTVHFg==" crossorigin="anonymous"></script>
+    <script>
+        moment.locale("en");
+        function flask_moment_render(elem) {{
+            const timestamp = moment(elem.dataset.timestamp);
+            const func = elem.dataset.function;
+            const format = elem.dataset.format;
+            const timestamp2 = elem.dataset.timestamp2;
+            const no_suffix = elem.dataset.nosuffix;
+            const units = elem.dataset.units;
+            let args = [];
+            if (format)
+                args.push(format);
+            if (timestamp2)
+                args.push(moment(timestamp2));
+            if (no_suffix)
+                args.push(no_suffix);
+            if (units)
+                args.push(units);
+            elem.textContent = timestamp[func].apply(timestamp, args);
+            elem.classList.remove('flask-moment');
+            elem.style.display = "";
+        }}
+        function flask_moment_render_all() {{
+            const moments = document.querySelectorAll('.flask-moment');
+            moments.forEach(function(moment) {{
+                flask_moment_render(moment);
+                const refresh = moment.dataset.refresh;
+                if (refresh && refresh > 0) {{
+                    (function(elem, interval) {{
+                        setInterval(function() {{
+                            flask_moment_render(elem);
+                        }}, interval);
+                    }})(moment, refresh);
+                }}
+            }})
+        }}
+        document.addEventListener("DOMContentLoaded", flask_moment_render_all);
+    </script>
+
+</body>
+</html>

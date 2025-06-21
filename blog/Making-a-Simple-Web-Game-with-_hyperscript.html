@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Google tag (gtag.js) -->
+    <!--
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-B2EBWQR3SF"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        
+        gtag('config', 'G-B2EBWQR3SF');
+    </script>
+    -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+    <title>Making a Simple Web Game with _hyperscript</title>
+
+    <!-- Bootstrap -->
+    <link href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="/static/css/main.css">
+    <meta name="description" content="The personal blog of Aiden White. I am a Software Developer located in Southern California.">
+    <meta name="keywords" content="aiden, white, software, developer, programmer, california, runner">
+</head>
+<body>
+    <nav class="navbar navbar-default">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar-collapse-1" aria-expanded="false">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">aidenwhite.com</a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar-collapse-1">
+                <ul class="nav navbar-nav">
+                    <li><a href="/">Blog</a></li>
+                    <li><a href="/projects.html">Projects</a></li>
+                    <li><a href="/about.html">About</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container post">
+        <h1><a class="post-title" href="/blog/Making-a-Simple-Web-Game-with-_hyperscript.html">Making a Simple Web Game with _hyperscript</a></h1>
+        <h6> By: Aiden White </h6>
+        <h6> Posted: <span class="" data-timestamp="2024-08-21T05:24:04Z" data-function="format" data-format="LLL" data-refresh="0" style="">August 20, 2024 10:24 PM</span> </h6>
+        <h6> Last Edited: <span class="" data-timestamp="2024-08-22T01:11:04Z" data-function="format" data-format="LLL" data-refresh="0" style="">August 21, 2024 6:11 PM</span> </h6>
+        <hr>
+        <div> 
+            I wanted to make a Wordle-like daily guessing game for long distance running fans like myself. The premise was: given a race result (i.e. meet, date, distance, time, and place), try to guess the name of the athlete. If the player didn't know or guessed incorrectly, they would get to see another clue until they ran out of guesses.
+            <br>
+            <br>
+            The game logic was simple, so perhaps the more interesting challenge was actually sourcing the athlete and result data. I will probably make a separate post about that in the future, but basically it involved GraphQL, Python, and SQLite.
+            <br>
+            <br>
+            So all the frontend needed to do was:
+            <ol>
+            <li>Fetch the athlete &amp; their results for the current date</li>
+            <li>Display the first clue</li>
+            <li>If the player guessed correctly, end the game</li>
+            <li>Else, display the next clue unless the maximum number of guesses had been reached</li>
+            </ol>
+            It seemed like overkill to bring in an entire JavaScript framework for these simple requirements. It would make much more sense to implement it in vanilla JS or jQuery, but I wanted to try something new and interesting. Enter hyperscript. 
+            <br>
+            <br>
+            For those unfamiliar with hyperscript, you can read all about it at <a href="https://hyperscript.org" target="_blank">hyperscript.org</a>. In a nutshell:
+            <blockquote> 
+            "Hyperscript is a scripting language for doing front end web development. It is designed to make it very easy to respond to events and do simple DOM manipulation in code that is directly embedded on elements on a web page."
+            </blockquote>
+            One of the advantages of hyperscript is its fantastic readability. That means when I inevitably abandon this project and return to it after a few months or years to make a bugfix or add a new feature, I can quickly understand how the code functions and what I was thinking when I wrote it.
+            <br>
+            <br>
+            So after taking a look at the hyperscript docs, I dove in. It was a bit difficult at first. It took some adjusting to be able to write what is essentially pseudocode, even coming from a language like Python. Other hyperscript users have said, and I would agree, that some of the time saved from hyperscript's readability is exchanged for the time it takes to pick up initially. But once I got going, I came to really enjoy hyperscript's simple syntax and DOM manipulation.
+            <br>
+            <br>
+            I created the game as a single-page application with only a couple other endpoints for fetching files with data. I did not use any backend framework for implementing routes, but rather served the static files directly with NGINX. In the &lt;head&gt; of the index.html doc, I created a &lt;script type="text/hyperscript"&gt; for initializing some global variables and functions. It looks like this:
+            <pre>init
+            set $guessNum to 0
+            set $maxGuesses to 6
+            set userDTF to Intl.DateTimeFormat().resolvedOptions()
+            make a Date called rawDate
+            set $shortDate to rawDate.toLocaleDateString('en-CA', {timezone: userDTF.timezone})
+            set $shortDate to $shortDate.split(',')[0]
+            set readableDate to rawDate.toLocaleDateString(userDTF.locale, 
+                {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'})
+            put readableDate into #date
+
+            def showNextResult(data, i)
+                make a &lt;tr&gt; called row
+                make a &lt;td&gt; put data['results'][i]['discipline'] into it then put it into row
+                make a &lt;td&gt; put data['results'][i]['date'] into it then put it at the end of row
+                make a &lt;td&gt; put data['results'][i]['competition'].split(',')[0] into it then put it at the end of row
+                make a &lt;td&gt; put data['results'][i]['country'] into it then put it at the end of row
+                make a &lt;td&gt; put data['results'][i]['mark'] into it then put it at the end of row
+                make a &lt;td&gt; put data['results'][i]['race'] into it then put it at the end of row
+                make a &lt;td&gt; put data['results'][i]['place'] into it then put it at the end of row
+                put row at the end of #resultsBody
+            end</pre>
+            The userDTF object is something I used for localization of dates and times. It also shows just how smoothly hyperscript integrates with JS APIs. The showNextResult() function is what adds a new row to the clue table by taking in the dict/map of all the results and the index of the result to show. It inserts table data elements with each value into a table row, then appends that row to the element with id #resultsBody, which is the main table. There are undoubtedly more clean/efficient ways to do this, but this is what I did.
+            <br>
+            <br>
+            I decided to fetch the data and display the first row with the body tag, so that things had already been initialized in the &lt;head&gt; and it would kick off as the rest of the page content loaded in:
+            <pre>&lt;body _="
+                init fetch `/json/${$shortDate}.json` as an Object 
+                set $data to the result
+                call showNextResult($data, 0)
+            "&gt;</pre>
+            I have to say, I absolutely love using fetch in hyperscript so that I don't have to deal with Promises. Sure, it may be more limited than using JS, but this is a simple application and it has everything we need. In another &lt;script type="text/hyperscript"&gt; at the bottom of &lt;body&gt;, I fetch some athlete names from a .csv so I can autocomplete names when a player is typing their guess:
+            <pre>init
+            fetch /athletes.csv as String
+            set $athletes to the result
+            set $athletes to $athletes.split('\n').map( \ x -&gt; x.split(', ')[0])</pre>
+            Here is the autocomplete logic in the &lt;input&gt;:
+            <pre>on input
+            get #listDiv then set its innerHTML to ''
+            set searchTerm to my value
+            if searchTerm.length &gt; 1
+                set searchResults to $athletes.filter( \ name -&gt; name.toLowerCase().includes(searchTerm.toLowerCase()))
+                make a &lt;ul/&gt; called autocompleteList put it into #listDiv
+                repeat for x in searchResults
+                    make a &lt;li/&gt; put x into it 
+                    set its @tabindex to '0'
+                    set its @script to 
+                    `
+                        on click set #nameInput.value to my innerHTML then get #listDiv set its innerHTML to ''
+                    `
+                    then put it at the end of autocompleteList
+                end
+            end</pre>
+            I even put hyperscript on the autocomplete &lt;li&gt; elements as a click handler. Not dealing with event listeners makes me happy :)
+            <br>
+            <br>
+            All the rest of the game logic lives inside the &lt;input type="submit"&gt; button and requires little to no explanation:
+            <pre>on click or submit
+            if ($guessNum &lt; $maxGuesses) and (#nameInput does not match .correct)
+                increment $guessNum
+                if #nameInput.value.toLowerCase() is $data['name'].toLowerCase()
+                    add .correct to #nameInput
+                    if $guessNum &gt; 1
+                        put 'Solved in ' + $guessNum + ' guesses!' into #message 
+                    else 
+                        put 'Solved in ' + $guessNum + ' guess!' into #message 
+                    end
+                else
+                    make a &lt;input/&gt;
+                    set its @value to #nameInput.value
+                    add .incorrect to it
+                    add @disabled to it then put it before #guesses 
+                    set #nameInput.value to ''
+                    if $maxGuesses == $guessNum
+                        put 'Out of guesses! &lt;br&gt; Answer: ' + $data['name'] into #message
+                    else
+                        if $maxGuesses - $guessNum == 1
+                            put 'Incorrect. 1 guess remaining' into #message 
+                            showNextResult($data, $guessNum)
+                        else
+                            put 'Incorrect. ' + ($maxGuesses - $guessNum) + ' guesses remaining' into #message 
+                            showNextResult($data, $guessNum)
+                        end
+                    end
+                end
+            end</pre>
+            I have some ideas for a few more features like allowing a player to play previous days' games, but that's all for now. To play the game and see this hyperscript in action, visit <a href="https://athleteguesser.com" target="_blank">athleteguesser.com</a>.
+            <br>
+            <br>
+            I enjoyed trying out hyperscript and would not hesitate to use it in the future for simple scripting and DOM manipulation. It's also worth mentioning that hyperscript is made by <a href="https://github.com/bigskysoftware" target="_blank">Big Sky Software</a> (the creators of HTMX), and they have a great community on Discord. 
+        </div>
+        <br>
+    </div>
+
+    <footer style="text-align:center"> 
+      <hr>
+      <p> &copy 2025 by Aiden White. All rights reserved.</p>
+    </footer>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment-with-locales.min.js" integrity="sha512-42PE0rd+wZ2hNXftlM78BSehIGzezNeQuzihiBCvUEB3CVxHvsShF86wBWwQORNxNINlBPuq7rG4WWhNiTVHFg==" crossorigin="anonymous"></script>
+    <script>
+        moment.locale("en");
+        function flask_moment_render(elem) {{
+            const timestamp = moment(elem.dataset.timestamp);
+            const func = elem.dataset.function;
+            const format = elem.dataset.format;
+            const timestamp2 = elem.dataset.timestamp2;
+            const no_suffix = elem.dataset.nosuffix;
+            const units = elem.dataset.units;
+            let args = [];
+            if (format)
+                args.push(format);
+            if (timestamp2)
+                args.push(moment(timestamp2));
+            if (no_suffix)
+                args.push(no_suffix);
+            if (units)
+                args.push(units);
+            elem.textContent = timestamp[func].apply(timestamp, args);
+            elem.classList.remove('flask-moment');
+            elem.style.display = "";
+        }}
+        function flask_moment_render_all() {{
+            const moments = document.querySelectorAll('.flask-moment');
+            moments.forEach(function(moment) {{
+                flask_moment_render(moment);
+                const refresh = moment.dataset.refresh;
+                if (refresh && refresh > 0) {{
+                    (function(elem, interval) {{
+                        setInterval(function() {{
+                            flask_moment_render(elem);
+                        }}, interval);
+                    }})(moment, refresh);
+                }}
+            }})
+        }}
+        document.addEventListener("DOMContentLoaded", flask_moment_render_all);
+    </script>
+
+</body>
+</html>
